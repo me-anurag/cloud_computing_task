@@ -1,0 +1,82 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint check
+        run: npm run lint || true  # Non-blocking lint for now; remove `|| true` to enforce
+
+      - name: Run tests
+        run: npm test
+        env:
+          # These are fake values just for CI — S3 calls are not made in unit tests
+          AWS_ACCESS_KEY_ID: fake-key
+          AWS_SECRET_ACCESS_KEY: fake-secret
+          AWS_REGION: us-east-1
+          S3_BUCKET_NAME: fake-bucket
+          PORT: 3001
+          INSTANCE_ID: ci-server
+
+      - name: Verify server starts
+        run: |
+          node src/server.js &
+          SERVER_PID=$!
+          sleep 2
+          curl -f http://localhost:3001/health || (kill $SERVER_PID && exit 1)
+          kill $SERVER_PID
+          echo "Server started and health check passed"
+        env:
+          AWS_ACCESS_KEY_ID: fake-key
+          AWS_SECRET_ACCESS_KEY: fake-secret
+          AWS_REGION: us-east-1
+          S3_BUCKET_NAME: fake-bucket
+          PORT: 3001
+          INSTANCE_ID: ci-server
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t image-upload-server:ci .
+
+      - name: Verify Docker image runs
+        run: |
+          docker run -d \
+            -p 3001:3001 \
+            -e AWS_ACCESS_KEY_ID=fake \
+            -e AWS_SECRET_ACCESS_KEY=fake \
+            -e AWS_REGION=us-east-1 \
+            -e S3_BUCKET_NAME=fake-bucket \
+            -e PORT=3001 \
+            -e INSTANCE_ID=docker-ci \
+            --name test-container \
+            image-upload-server:ci
+
+          sleep 3
+          curl -f http://localhost:3001/health
+          docker stop test-container
