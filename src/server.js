@@ -1,3 +1,4 @@
+const cors = require('cors');
 const express = require('express');
 const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
@@ -5,6 +6,7 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 
 const app = express();
+app.use(cors());
 const PORT = process.env.PORT || 3001;
 const INSTANCE_ID = process.env.INSTANCE_ID || `server-${PORT}`;
 
