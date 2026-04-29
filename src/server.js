@@ -22,7 +22,7 @@ const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 // Multer config — memory storage, 2MB limit
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  limits: { fileSize: 20 * 1024 * 1024 }, // 2MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!allowedTypes.includes(file.mimetype)) {
@@ -41,7 +41,7 @@ app.get('/health', (req, res) => {
 app.post('/upload', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: 'No image file provided' });
+      return res.status(400).json({ error: 'File too large. Max size is 20MB.' });
     }
 
     const ext = path.extname(req.file.originalname).toLowerCase() || '.jpg';
